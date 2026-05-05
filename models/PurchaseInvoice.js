@@ -88,7 +88,6 @@ const PurchaseInvoiceSchema = new mongoose.Schema(
 
     referenceInvoiceNumber: {
       type: String,
-      required: true,
       unique: true,
     },
 
@@ -120,13 +119,8 @@ const PurchaseInvoiceSchema = new mongoose.Schema(
     },
 
     /* ===============================
-   DISCOUNT
-=============================== */
-    discount: {
-      type: Number, // percentage
-      default: 0,
-    },
-
+    DISCOUNT (FLAT AMOUNT)
+    =============================== */
     discountAmount: {
       type: Number,
       default: 0,

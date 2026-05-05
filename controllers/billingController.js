@@ -8,7 +8,10 @@ import sendBillingSMS from "../utils/sendBillingSMS.js";
    Generate Invoice Number
 ====================================================== */
 const generateInvoiceNumber = async () => {
-  const lastBilling = await Billing.findOne({})
+  const lastBilling = await Billing.findOne({
+    status: "Completed",
+    invoiceNumber: { $ne: null },
+  })
     .sort({ createdAt: -1 })
     .select("invoiceNumber");
 
@@ -53,8 +56,6 @@ export const createBilling = async (req, res) => {
       userId,
       branchId,
       customerId,
-
-      invoiceNumber: await generateInvoiceNumber(),
 
       items: [],
       subTotal: 0,
@@ -288,7 +289,7 @@ export const addProductByBarcode = async (req, res) => {
     }
 
     await billing.save();
-    
+
     res.json({
       success: true,
       message: "Product added",
@@ -384,7 +385,7 @@ export const getBillingById = async (req, res) => {
 ====================================================== */
 export const completeBilling = async (req, res) => {
   try {
-    const { paymentMode, discount = 0, freightCharge = 0 } = req.body;
+    const { paymentMode, discountAmount = 0, freightCharge = 0 } = req.body;
 
     const billing = await Billing.findById(req.params.id);
 
@@ -414,8 +415,8 @@ export const completeBilling = async (req, res) => {
       });
 
     /* =========================
-   PAY LATER VALIDATION
-========================= */
+    PAY LATER VALIDATION
+    ========================= */
 
     if (paymentMode === "Pay Later") {
       if (!req.body.remarks || !req.body.remarks.trim()) {
@@ -427,15 +428,21 @@ export const completeBilling = async (req, res) => {
     }
 
     /* =========================
-       DISCOUNT VALIDATION
-    ========================== */
+   DISCOUNT VALIDATION
+========================= */
 
-    const discountValue = Number(discount);
+    const discountValue = Number(discountAmount);
 
-    if (isNaN(discountValue) || discountValue < 0 || discountValue > 100)
+    if (isNaN(discountValue) || discountValue < 0)
       return res.status(400).json({
         success: false,
-        message: "Discount must be between 0 to 100",
+        message: "Discount amount must be a valid number ≥ 0",
+      });
+
+    if (discountValue > billing.subTotal)
+      return res.status(400).json({
+        success: false,
+        message: "Discount amount cannot exceed subtotal",
       });
 
     /* =========================
@@ -451,13 +458,21 @@ export const completeBilling = async (req, res) => {
       });
 
     /* =========================
-       CALCULATE DISCOUNT
+       DISCOUNT amount final
     ========================== */
+    const discountAmountFinal = discountValue;
 
-    const discountAmount = (billing.subTotal * discountValue) / 100;
+    const finalTotal = Math.max(
+      billing.subTotal - discountAmountFinal + billing.totalTax + freightValue,
+      0
+    );
 
-    const finalTotal =
-      billing.subTotal - discountAmount + billing.totalTax + freightValue;
+    /* =========================
+    Generate Invoice number
+    ========================= */
+    if (!billing.invoiceNumber) {
+      billing.invoiceNumber = await generateInvoiceNumber();
+    }
 
     /* =========================
        UPDATE BILLING
@@ -466,14 +481,25 @@ export const completeBilling = async (req, res) => {
     billing.paymentMode = paymentMode;
     billing.remarks =
       paymentMode === "Pay Later" ? req.body.remarks.trim() : "";
-    billing.discount = discountValue;
-    billing.discountAmount = discountAmount;
+
+    billing.discountAmount = discountAmountFinal;
+
     billing.freightCharge = freightValue;
-    billing.finalTotal = finalTotal;
+    billing.finalTotal = Number(finalTotal.toFixed(2));
     billing.status = "Completed";
     billing.paymentStatus = paymentMode === "Pay Later" ? "Pending" : "Paid";
 
-    await billing.save();
+    try {
+      await billing.save();
+    } catch (err) {
+      if (err.code === 11000) {
+        // regenerate invoice number and retry
+        billing.invoiceNumber = await generateInvoiceNumber();
+        await billing.save();
+      } else {
+        throw err;
+      }
+    }
 
     /* =========================
    SEND SMS TO CUSTOMER

@@ -8,7 +8,10 @@ import Product from "../models/Product.js";
    Generate Reference Invoice Number
 ====================================================== */
 const generateReferenceInvoiceNumber = async () => {
-  const lastPurchaseInvoice = await PurchaseInvoice.findOne({})
+  const lastPurchaseInvoice = await PurchaseInvoice.findOne({
+    status: "Completed",
+    referenceInvoiceNumber: { $ne: null },
+  })
     .sort({ createdAt: -1 })
     .select("referenceInvoiceNumber");
 
@@ -118,7 +121,6 @@ export const createPurchaseInvoice = async (req, res) => {
       supplierId,
 
       invoiceNumber, // supplier's invoice number
-      referenceInvoiceNumber: await generateReferenceInvoiceNumber(),
       invoiceDate,
       placeOfSupply,
 
@@ -279,7 +281,7 @@ export const addProductByBarcode = async (req, res) => {
       purchase.items.push({
         productId: product._id,
         productName: product.productName,
-        itemCode: product.itemCode,  
+        itemCode: product.itemCode,
         barCode: product.barCode,
 
         quantity: qty,
@@ -327,7 +329,7 @@ export const addProductByBarcode = async (req, res) => {
 ====================================================== */
 export const completePurchaseInvoice = async (req, res) => {
   try {
-    const { paymentMode, discount = 0, freightCharge = 0 } = req.body;
+    const { paymentMode, discountAmount = 0, freightCharge = 0 } = req.body;
 
     const purchase = await PurchaseInvoice.findById(req.params.id);
 
@@ -370,16 +372,23 @@ export const completePurchaseInvoice = async (req, res) => {
     }
 
     /* =========================
-       DISCOUNT VALIDATION
-    ========================== */
+    DISCOUNT VALIDATION
+    ========================= */
 
-    const discountValue = Number(discount);
+    const discountValue = Number(discountAmount);
 
-    if (isNaN(discountValue) || discountValue < 0 || discountValue > 100)
+    if (isNaN(discountValue) || discountValue < 0)
       return res.status(400).json({
         success: false,
-        message: "Discount must be between 0 to 100",
+        message: "Discount amount must be a valid number ≥ 0",
       });
+
+    if (discountValue > purchase.subTotal)
+      return res.status(400).json({
+        success: false,
+        message: "Discount amount cannot exceed subtotal",
+      });
+
 
     /* =========================
        FREIGHT VALIDATION
@@ -394,17 +403,28 @@ export const completePurchaseInvoice = async (req, res) => {
       });
 
     /* =========================
-       CALCULATE DISCOUNT
+       DISCOUNT amount final
     ========================== */
 
-    const discountAmount = (purchase.subTotal * discountValue) / 100;
+    const discountAmountFinal = discountValue;
 
     /* =========================
        FINAL TOTAL CALCULATION
     ========================== */
 
-    const finalTotal =
-      purchase.subTotal - discountAmount + purchase.totalTax + freightValue;
+    const finalTotal = Math.max(
+      purchase.subTotal - discountAmountFinal + purchase.totalTax + freightValue,
+      0
+    );
+
+    /* =========================
+    GENERATE REFERENCE NUMBER
+    ========================= */
+
+    if (!purchase.referenceInvoiceNumber) {
+      purchase.referenceInvoiceNumber =
+        await generateReferenceInvoiceNumber();
+    }
 
     /* =========================
        UPDATE PURCHASE
@@ -413,16 +433,27 @@ export const completePurchaseInvoice = async (req, res) => {
     purchase.paymentMode = paymentMode;
     purchase.remarks =
       paymentMode === "Pay Later" ? req.body.remarks.trim() : "";
-    purchase.discount = discountValue;
-    purchase.discountAmount = discountAmount;
+
+    purchase.discountAmount = discountAmountFinal;
 
     purchase.freightCharge = freightValue;
 
-    purchase.finalTotal = finalTotal;
+    purchase.finalTotal = Number(finalTotal.toFixed(2));
     purchase.status = "Completed";
     purchase.paymentStatus = paymentMode === "Pay Later" ? "Pending" : "Paid";
 
-    await purchase.save();
+    try {
+      await purchase.save();
+    } catch (err) {
+      if (err.code === 11000) {
+        purchase.referenceInvoiceNumber =
+          await generateReferenceInvoiceNumber();
+
+        await purchase.save();
+      } else {
+        throw err;
+      }
+    }
 
     res.json({
       success: true,

@@ -80,7 +80,6 @@ const BillingSchema = new mongoose.Schema(
 
     invoiceNumber: {
       type: String,
-      required: true,
       unique: true,
     },
 
@@ -102,13 +101,8 @@ const BillingSchema = new mongoose.Schema(
     },
 
     /* ===============================
-       DISCOUNT 
+    DISCOUNT (FLAT AMOUNT)
     =============================== */
-    discount: {
-      type: Number, // percentage
-      default: 0,
-    },
-
     discountAmount: {
       type: Number,
       default: 0,
