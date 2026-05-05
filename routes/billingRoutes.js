@@ -16,7 +16,14 @@ import { protectUser } from "../middlewares/userAuth.js";
 
 const router = express.Router();
 
+/* ===========================
+   APPLY AUTH BELOW ONLY
+=========================== */
 router.use(protectUser);
+
+/* ===========================
+   PRIVATE ROUTES
+=========================== */
 
 router.post("/create", createBilling);
 

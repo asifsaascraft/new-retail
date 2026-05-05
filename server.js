@@ -8,6 +8,7 @@ import cookieParser from "cookie-parser";
 import connectDB from "./config/db.js";
 
 // Routes
+import invoiceRoutes from "./routes/invoiceRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import userAuthRoutes from "./routes/userAuthRoutes.js";
 import branchRoutes from "./routes/branchRoutes.js";
@@ -18,7 +19,6 @@ import supplierRoutes from "./routes/supplierRoutes.js";
 import purchaseInvoiceRoutes from "./routes/purchaseInvoiceRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
-
 
 const app = express();
 
@@ -70,6 +70,10 @@ app.get("/", (req, res) => {
 // =======================
 // API Routes
 // =======================
+
+app.use("/api/public-invoice", invoiceRoutes);
+
+
 app.use("/api/admin", adminRoutes);
 app.use("/api/users", userAuthRoutes);
 app.use("/api/branches", branchRoutes);

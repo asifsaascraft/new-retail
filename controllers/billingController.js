@@ -507,9 +507,12 @@ export const completeBilling = async (req, res) => {
 
     try {
       const customer = await Customer.findById(billing.customerId);
-      const branch = await Billing.findById(billing._id).populate("branchId");
-      const invoiceUrl = "XYZ";
+      const branch = await billing.populate("branchId");
 
+      const encodedInvoice = encodeURIComponent(billing.invoiceNumber);
+
+      const invoiceUrl = `https://vamana.retailcraft.co.in/invoice/${encodedInvoice}`;
+      
       if (customer?.mobile) {
         await sendBillingSMS(
           customer.mobile,
@@ -882,6 +885,47 @@ export const updateBillingPaymentStatus = async (req, res) => {
       message: "Payment status updated",
       data: billing,
     });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+/* ======================================================
+   Get Invoice
+====================================================== */
+export const getInvoiceByNumber = async (req, res) => {
+  try {
+    const { invoiceNumber } = req.query;
+
+    if (!invoiceNumber) {
+      return res.status(400).json({
+        success: false,
+        message: "invoiceNumber is required",
+      });
+    }
+
+    const billing = await Billing.findOne({ invoiceNumber })
+      .populate("customerId", "name mobile email")
+      .populate(
+        "branchId",
+        "branchName address city state pincode branchPhoneNumber branchGstNumber"
+      );
+
+    if (!billing) {
+      return res.status(404).json({
+        success: false,
+        message: "Invoice not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: billing,
+    });
+
   } catch (error) {
     res.status(500).json({
       success: false,
