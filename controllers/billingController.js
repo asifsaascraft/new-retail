@@ -507,12 +507,17 @@ export const completeBilling = async (req, res) => {
 
     try {
       const customer = await Customer.findById(billing.customerId);
+      const branch = await Billing.findById(billing._id).populate("branchId");
+      const invoiceUrl = "XYZ";
 
       if (customer?.mobile) {
         await sendBillingSMS(
           customer.mobile,
+          customer.name || "Customer",
           billing.invoiceNumber,
           billing.finalTotal,
+          invoiceUrl,          // invoice URL 
+          branch.branchId?.branchName || "Our Store"
         );
       }
     } catch (smsError) {
