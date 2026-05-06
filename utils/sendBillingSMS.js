@@ -3,7 +3,7 @@ import axios from "axios";
 const sendBillingSMS = async (mobile, name, invoiceNumber, finalTotal, invoiceUrl, branchName) => {
   try {
 
-    const message = `Hello ${name}, Your order # ${invoiceNumber} has been successfully processed. Total Amount: ${finalTotal}. Download your invoice: ${invoiceUrl} . Thank you for choosing ${branchName}! - SaaScraft Studio`;
+    const message = `Hello ${name}, Your order # ${invoiceNumber} has been successfully processed. Total Amount: ${finalTotal}. Download your invoice: ${invoiceUrl}. Thank you for choosing ${branchName}! - SaaScraft Studio`;
     const params = {
       APIKey: process.env.SMS_GATEWAY_API_KEY,
       senderid: process.env.SMS_GATEWAY_SENDER_ID,
