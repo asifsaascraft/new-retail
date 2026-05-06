@@ -507,12 +507,11 @@ export const completeBilling = async (req, res) => {
 
     try {
       const customer = await Customer.findById(billing.customerId);
-      const branch = await billing.populate("branchId");
-
+      await billing.populate("branchId");
       const encodedInvoice = encodeURIComponent(billing.invoiceNumber);
 
-      const invoiceUrl = `https://vamana.retailcraft.co.in/invoice/${encodedInvoice}`;
-      
+      const invoiceUrl = `vamana.retailcraft.co.in/invoice/?INV=${encodedInvoice}`;
+
       if (customer?.mobile) {
         await sendBillingSMS(
           customer.mobile,
@@ -520,7 +519,7 @@ export const completeBilling = async (req, res) => {
           billing.invoiceNumber,
           billing.finalTotal,
           invoiceUrl,          // invoice URL 
-          branch.branchId?.branchName || "Our Store"
+          billing.branchId?.branchName || "Our Store"
         );
       }
     } catch (smsError) {
