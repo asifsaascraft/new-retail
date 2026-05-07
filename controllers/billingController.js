@@ -508,9 +508,14 @@ export const completeBilling = async (req, res) => {
     try {
       const customer = await Customer.findById(billing.customerId);
       await billing.populate("branchId");
-      const encodedInvoice = encodeURIComponent(billing.invoiceNumber);
 
-      const invoiceUrl = `vamana.retailcraft.co.in/invoice/?INV=${encodedInvoice}`;
+      // Extract only invoice sequence
+      const shortInvoiceCode =
+        billing.invoiceNumber.split("/").pop();
+
+      // Short DLT-friendly URL
+      const invoiceUrl =
+        `vamana.retailcraft.co.in/invoice/?INV=${shortInvoiceCode}`;
 
       if (customer?.mobile) {
         await sendBillingSMS(
@@ -897,16 +902,33 @@ export const updateBillingPaymentStatus = async (req, res) => {
 ====================================================== */
 export const getInvoiceByNumber = async (req, res) => {
   try {
-    const { invoiceNumber } = req.query;
+    // Support BOTH formats:
+    //
+    // OLD FRONTEND:
+    // ?invoiceNumber=INV/VMN/CUS/001
+    //
+    // NEW SMS:
+    // ?INV=001
 
-    if (!invoiceNumber) {
+    const { invoiceNumber, INV } = req.query;
+
+    let finalInvoiceNumber = invoiceNumber;
+
+    // If SMS short code used
+    if (!finalInvoiceNumber && INV) {
+      finalInvoiceNumber = `INV/VMN/CUS/${INV}`;
+    }
+
+    if (!finalInvoiceNumber) {
       return res.status(400).json({
         success: false,
-        message: "invoiceNumber is required",
+        message: "invoiceNumber or INV is required",
       });
     }
 
-    const billing = await Billing.findOne({ invoiceNumber })
+    const billing = await Billing.findOne({
+      invoiceNumber: finalInvoiceNumber,
+    })
       .populate("customerId", "name mobile email")
       .populate(
         "branchId",
