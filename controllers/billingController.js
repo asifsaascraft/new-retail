@@ -902,32 +902,20 @@ export const updateBillingPaymentStatus = async (req, res) => {
 ====================================================== */
 export const getInvoiceByNumber = async (req, res) => {
   try {
-    // Support BOTH formats:
-    //
-    // OLD FRONTEND:
-    // ?invoiceNumber=INV/VMN/CUS/001
-    //
-    // NEW SMS:
-    // ?INV=001
+    const { INV } = req.query;
 
-    const { invoiceNumber, INV } = req.query;
-
-    let finalInvoiceNumber = invoiceNumber;
-
-    // If SMS short code used
-    if (!finalInvoiceNumber && INV) {
-      finalInvoiceNumber = `INV/VMN/CUS/${INV}`;
-    }
-
-    if (!finalInvoiceNumber) {
+    if (!INV) {
       return res.status(400).json({
         success: false,
-        message: "invoiceNumber or INV is required",
+        message: "invoiceNumber is required",
       });
     }
 
+    // Rebuild full invoice number
+    const invoiceNumber = `INV/VMN/CUS/${INV}`;
+
     const billing = await Billing.findOne({
-      invoiceNumber: finalInvoiceNumber,
+      invoiceNumber,
     })
       .populate("customerId", "name mobile email")
       .populate(
