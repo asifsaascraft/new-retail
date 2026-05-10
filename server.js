@@ -64,7 +64,7 @@ app.use(morgan("dev"));
 // Health check
 // =======================
 app.get("/", (req, res) => {
-  res.send("RetailCraft Backend by SaaScraft Studio (India) Pvt. Ltd.");
+  res.send("New RetailCraft Backend by SaaScraft Studio (India) Pvt. Ltd.");
 });
 
 // =======================
