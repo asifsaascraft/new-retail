@@ -78,6 +78,11 @@ const BillingSchema = new mongoose.Schema(
       required: true,
     },
 
+    invoiceType: {
+      type: String,
+      enum: ["J1", "J2"],
+    },
+
     invoiceNumber: {
       type: String,
       unique: true,

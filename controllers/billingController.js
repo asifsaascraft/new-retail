@@ -7,10 +7,17 @@ import sendBillingSMS from "../utils/sendBillingSMS.js";
 /* ======================================================
    Generate Invoice Number
 ====================================================== */
-const generateInvoiceNumber = async () => {
+const generateInvoiceNumber = async (invoiceType) => {
+  const currentYear = new Date().getFullYear().toString().slice(-2);
+
+  const prefix = `${invoiceType}CRSA${currentYear}`;
+
   const lastBilling = await Billing.findOne({
     status: "Completed",
-    invoiceNumber: { $ne: null },
+    invoiceType,
+    invoiceNumber: {
+      $regex: `^${prefix}/`,
+    },
   })
     .sort({ createdAt: -1 })
     .select("invoiceNumber");
@@ -19,14 +26,15 @@ const generateInvoiceNumber = async () => {
 
   if (lastBilling?.invoiceNumber) {
     const parts = lastBilling.invoiceNumber.split("/");
-    const lastSeq = parseInt(parts[3], 10);
+
+    const lastSeq = parseInt(parts[1], 10);
 
     if (!isNaN(lastSeq)) {
       nextNumber = lastSeq + 1;
     }
   }
 
-  return `INV/VMN/CUS/${String(nextNumber).padStart(3, "0")}`;
+  return `${prefix}/${nextNumber}`;
 };
 
 /* ======================================================
@@ -385,7 +393,12 @@ export const getBillingById = async (req, res) => {
 ====================================================== */
 export const completeBilling = async (req, res) => {
   try {
-    const { paymentMode, discountAmount = 0, freightCharge = 0 } = req.body;
+    const {
+      paymentMode,
+      discountAmount = 0,
+      freightCharge = 0,
+      invoiceType,
+    } = req.body;
 
     const billing = await Billing.findById(req.params.id);
 
@@ -400,6 +413,19 @@ export const completeBilling = async (req, res) => {
         success: false,
         message: "Invoice already completed",
       });
+
+    /* =========================
+   INVOICE TYPE VALIDATION
+========================= */
+
+    const validInvoiceTypes = ["J1", "J2"];
+
+    if (!invoiceType || !validInvoiceTypes.includes(invoiceType)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid invoiceType is required (J1 or J2)",
+      });
+    }
 
     /* =========================
        PAYMENT MODE VALIDATION
@@ -464,14 +490,16 @@ export const completeBilling = async (req, res) => {
 
     const finalTotal = Math.max(
       billing.subTotal - discountAmountFinal + billing.totalTax + freightValue,
-      0
+      0,
     );
 
     /* =========================
     Generate Invoice number
     ========================= */
     if (!billing.invoiceNumber) {
-      billing.invoiceNumber = await generateInvoiceNumber();
+      billing.invoiceType = invoiceType;
+
+      billing.invoiceNumber = await generateInvoiceNumber(invoiceType);
     }
 
     /* =========================
@@ -494,7 +522,9 @@ export const completeBilling = async (req, res) => {
     } catch (err) {
       if (err.code === 11000) {
         // regenerate invoice number and retry
-        billing.invoiceNumber = await generateInvoiceNumber();
+        billing.invoiceNumber = await generateInvoiceNumber(
+          billing.invoiceType,
+        );
         await billing.save();
       } else {
         throw err;
@@ -510,12 +540,10 @@ export const completeBilling = async (req, res) => {
       await billing.populate("branchId");
 
       // Extract only invoice sequence
-      const shortInvoiceCode =
-        billing.invoiceNumber.split("/").pop();
+      const shortInvoiceCode = billing.invoiceNumber.split("/").pop();
 
       // Short DLT-friendly URL
-      const invoiceUrl =
-        `vamana.retailcraft.co.in/invoice/?INV=${shortInvoiceCode}`;
+      const invoiceUrl = `vamana.retailcraft.co.in/invoice/?INV=${shortInvoiceCode}`;
 
       if (customer?.mobile) {
         await sendBillingSMS(
@@ -523,8 +551,8 @@ export const completeBilling = async (req, res) => {
           customer.name || "Customer",
           billing.invoiceNumber,
           billing.finalTotal,
-          invoiceUrl,          // invoice URL 
-          billing.branchId?.branchName || "Our Store"
+          invoiceUrl, // invoice URL
+          billing.branchId?.branchName || "Our Store",
         );
       }
     } catch (smsError) {
@@ -911,8 +939,7 @@ export const getInvoiceByNumber = async (req, res) => {
       });
     }
 
-    // Rebuild full invoice number
-    const invoiceNumber = `INV/VMN/CUS/${INV}`;
+    const invoiceNumber = INV;
 
     const billing = await Billing.findOne({
       invoiceNumber,
@@ -920,7 +947,7 @@ export const getInvoiceByNumber = async (req, res) => {
       .populate("customerId", "name mobile email")
       .populate(
         "branchId",
-        "branchName address city state pincode branchPhoneNumber branchGstNumber"
+        "branchName address city state pincode branchPhoneNumber branchGstNumber",
       );
 
     if (!billing) {
@@ -934,7 +961,6 @@ export const getInvoiceByNumber = async (req, res) => {
       success: true,
       data: billing,
     });
-
   } catch (error) {
     res.status(500).json({
       success: false,
