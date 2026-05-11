@@ -81,7 +81,6 @@ const BillingSchema = new mongoose.Schema(
     publicInvoiceId: {
       type: String,
       unique: true,
-      immutable: true,
     },
 
     invoiceType: {
@@ -92,7 +91,6 @@ const BillingSchema = new mongoose.Schema(
     invoiceNumber: {
       type: String,
       unique: true,
-      immutable: true,
     },
 
     items: [BillingItemSchema],
@@ -160,7 +158,6 @@ const BillingSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-BillingSchema.index({ publicInvoiceId: 1 }, { unique: true });
 
 export default mongoose.models.Billing ||
   mongoose.model("Billing", BillingSchema);
