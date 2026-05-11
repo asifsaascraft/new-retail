@@ -30,6 +30,7 @@
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
     "multer-s3": "^3.0.1",
+    "nanoid": "^5.1.11",
     "zeptomail": "^6.2.1"
   },
   "devDependencies": {

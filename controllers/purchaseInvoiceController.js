@@ -329,7 +329,7 @@ export const addProductByBarcode = async (req, res) => {
 ====================================================== */
 export const completePurchaseInvoice = async (req, res) => {
   try {
-    const { paymentMode, discountAmount = 0, freightCharge = 0 } = req.body;
+    const { paymentMode, discount = 0, freightCharge = 0 } = req.body;
 
     const purchase = await PurchaseInvoice.findById(req.params.id);
 
@@ -375,19 +375,18 @@ export const completePurchaseInvoice = async (req, res) => {
     DISCOUNT VALIDATION
     ========================= */
 
-    const discountValue = Number(discountAmount);
+    const discountValue = Number(discount);
 
-    if (isNaN(discountValue) || discountValue < 0)
+    if (
+      isNaN(discountValue) ||
+      discountValue < 0 ||
+      discountValue > 100
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Discount amount must be a valid number ≥ 0",
+        message: "Discount must be between 0 and 100",
       });
-
-    if (discountValue > purchase.subTotal)
-      return res.status(400).json({
-        success: false,
-        message: "Discount amount cannot exceed subtotal",
-      });
+    }
 
 
     /* =========================
@@ -403,18 +402,21 @@ export const completePurchaseInvoice = async (req, res) => {
       });
 
     /* =========================
-       DISCOUNT amount final
+       DISCOUNT CALCULATION
     ========================== */
 
-    const discountAmountFinal = discountValue;
+    const discountAmountFinal = Number(
+      ((purchase.subTotal * discountValue) / 100).toFixed(2)
+    );
 
-    /* =========================
-       FINAL TOTAL CALCULATION
-    ========================== */
-
-    const finalTotal = Math.max(
-      purchase.subTotal - discountAmountFinal + purchase.totalTax + freightValue,
-      0
+    const finalTotal = Number(
+      Math.max(
+        purchase.subTotal -
+        discountAmountFinal +
+        purchase.totalTax +
+        freightValue,
+        0
+      ).toFixed(2)
     );
 
     /* =========================
@@ -434,11 +436,12 @@ export const completePurchaseInvoice = async (req, res) => {
     purchase.remarks =
       paymentMode === "Pay Later" ? req.body.remarks.trim() : "";
 
+    purchase.discount = discountValue;
     purchase.discountAmount = discountAmountFinal;
 
     purchase.freightCharge = freightValue;
 
-    purchase.finalTotal = Number(finalTotal.toFixed(2));
+    purchase.finalTotal = finalTotal;
     purchase.status = "Completed";
     purchase.paymentStatus = paymentMode === "Pay Later" ? "Pending" : "Paid";
 

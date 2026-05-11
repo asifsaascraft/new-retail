@@ -1,8 +1,15 @@
 import mongoose from "mongoose";
+import { customAlphabet } from "nanoid";
 import Billing from "../models/Billing.js";
 import Product from "../models/Product.js";
 import Customer from "../models/Customer.js";
 import sendBillingSMS from "../utils/sendBillingSMS.js";
+
+
+const nanoid = customAlphabet(
+  "ABCDEFGHJKLMNPQRSTUVWXYZ23456789",
+  8
+);
 
 /* ======================================================
    Generate Invoice Number
@@ -395,7 +402,7 @@ export const completeBilling = async (req, res) => {
   try {
     const {
       paymentMode,
-      discountAmount = 0,
+      discount = 0,
       freightCharge = 0,
       invoiceType,
     } = req.body;
@@ -454,22 +461,21 @@ export const completeBilling = async (req, res) => {
     }
 
     /* =========================
-   DISCOUNT VALIDATION
-========================= */
+     DISCOUNT VALIDATION
+    ========================= */
 
-    const discountValue = Number(discountAmount);
+    const discountValue = Number(discount);
 
-    if (isNaN(discountValue) || discountValue < 0)
+    if (
+      isNaN(discountValue) ||
+      discountValue < 0 ||
+      discountValue > 100
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Discount amount must be a valid number ≥ 0",
+        message: "Discount must be between 0 and 100",
       });
-
-    if (discountValue > billing.subTotal)
-      return res.status(400).json({
-        success: false,
-        message: "Discount amount cannot exceed subtotal",
-      });
+    }
 
     /* =========================
     FREIGHT VALIDATION
@@ -484,13 +490,21 @@ export const completeBilling = async (req, res) => {
       });
 
     /* =========================
-       DISCOUNT amount final
-    ========================== */
-    const discountAmountFinal = discountValue;
+     DISCOUNT CALCULATION
+    ========================= */
 
-    const finalTotal = Math.max(
-      billing.subTotal - discountAmountFinal + billing.totalTax + freightValue,
-      0,
+    const discountAmountFinal = Number(
+      ((billing.subTotal * discountValue) / 100).toFixed(2)
+    );
+
+    const finalTotal = Number(
+      Math.max(
+        billing.subTotal -
+        discountAmountFinal +
+        billing.totalTax +
+        freightValue,
+        0
+      ).toFixed(2)
     );
 
     /* =========================
@@ -502,6 +516,10 @@ export const completeBilling = async (req, res) => {
       billing.invoiceNumber = await generateInvoiceNumber(invoiceType);
     }
 
+    if (!billing.publicInvoiceId) {
+      billing.publicInvoiceId = nanoid();
+    }
+
     /* =========================
        UPDATE BILLING
     ========================== */
@@ -510,10 +528,11 @@ export const completeBilling = async (req, res) => {
     billing.remarks =
       paymentMode === "Pay Later" ? req.body.remarks.trim() : "";
 
+    billing.discount = discountValue;
     billing.discountAmount = discountAmountFinal;
 
     billing.freightCharge = freightValue;
-    billing.finalTotal = Number(finalTotal.toFixed(2));
+    billing.finalTotal = finalTotal;
     billing.status = "Completed";
     billing.paymentStatus = paymentMode === "Pay Later" ? "Pending" : "Paid";
 
@@ -525,6 +544,8 @@ export const completeBilling = async (req, res) => {
         billing.invoiceNumber = await generateInvoiceNumber(
           billing.invoiceType,
         );
+
+        billing.publicInvoiceId = nanoid();
         await billing.save();
       } else {
         throw err;
@@ -539,11 +560,7 @@ export const completeBilling = async (req, res) => {
       const customer = await Customer.findById(billing.customerId);
       await billing.populate("branchId");
 
-      // Extract only invoice sequence
-      const shortInvoiceCode = billing.invoiceNumber.split("/").pop();
-
-      // Short DLT-friendly URL
-      const invoiceUrl = `vamana.retailcraft.co.in/invoice/?INV=${shortInvoiceCode}`;
+      const invoiceUrl = `https://sapthadhri.retailcraft.co.in/i/?INV=${billing.publicInvoiceId}`;
 
       if (customer?.mobile) {
         await sendBillingSMS(
@@ -925,6 +942,7 @@ export const updateBillingPaymentStatus = async (req, res) => {
   }
 };
 
+
 /* ======================================================
    Get Invoice
 ====================================================== */
@@ -935,14 +953,13 @@ export const getInvoiceByNumber = async (req, res) => {
     if (!INV) {
       return res.status(400).json({
         success: false,
-        message: "invoiceNumber is required",
+        message: "INV is required",
       });
     }
 
-    const invoiceNumber = INV;
-
     const billing = await Billing.findOne({
-      invoiceNumber,
+      publicInvoiceId: INV,
+      status: "Completed",
     })
       .populate("customerId", "name mobile email")
       .populate(

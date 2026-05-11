@@ -78,6 +78,12 @@ const BillingSchema = new mongoose.Schema(
       required: true,
     },
 
+    publicInvoiceId: {
+      type: String,
+      unique: true,
+      immutable: true,
+    },
+
     invoiceType: {
       type: String,
       enum: ["J1", "J2"],
@@ -86,6 +92,7 @@ const BillingSchema = new mongoose.Schema(
     invoiceNumber: {
       type: String,
       unique: true,
+      immutable: true,
     },
 
     items: [BillingItemSchema],
@@ -106,10 +113,16 @@ const BillingSchema = new mongoose.Schema(
     },
 
     /* ===============================
-    DISCOUNT (FLAT AMOUNT)
+     DISCOUNT
     =============================== */
+
+    discount: {
+      type: Number, // percentage
+      default: 0,
+    },
+
     discountAmount: {
-      type: Number,
+      type: Number, // calculated amount
       default: 0,
     },
 
@@ -146,6 +159,8 @@ const BillingSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+BillingSchema.index({ publicInvoiceId: 1 }, { unique: true });
 
 export default mongoose.models.Billing ||
   mongoose.model("Billing", BillingSchema);

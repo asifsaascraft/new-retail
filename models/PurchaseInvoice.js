@@ -119,10 +119,16 @@ const PurchaseInvoiceSchema = new mongoose.Schema(
     },
 
     /* ===============================
-    DISCOUNT (FLAT AMOUNT)
+     DISCOUNT
     =============================== */
+
+    discount: {
+      type: Number, // percentage
+      default: 0,
+    },
+
     discountAmount: {
-      type: Number,
+      type: Number, // calculated amount
       default: 0,
     },
 
