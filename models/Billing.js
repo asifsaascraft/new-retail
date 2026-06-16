@@ -91,6 +91,7 @@ const BillingSchema = new mongoose.Schema(
     invoiceNumber: {
       type: String,
       unique: true,
+      sparse: true,
     },
 
     items: [BillingItemSchema],
