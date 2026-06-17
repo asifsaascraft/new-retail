@@ -88,9 +88,14 @@ const BillingSchema = new mongoose.Schema(
       enum: ["J1", "J2"],
     },
 
+    invoiceDate: {
+      type: Date,
+    },
+
     invoiceNumber: {
       type: String,
       unique: true,
+      sparse: true,
     },
 
     items: [BillingItemSchema],

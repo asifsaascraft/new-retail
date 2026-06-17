@@ -51,7 +51,7 @@ export const createBilling = async (req, res) => {
   try {
     const userId = req.user._id;
     const branchId = req.user.branchId;
-    const { customerId } = req.body;
+    const { customerId, invoiceDate } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(customerId))
       return res.status(400).json({
@@ -71,6 +71,7 @@ export const createBilling = async (req, res) => {
       userId,
       branchId,
       customerId,
+      invoiceDate,
 
       items: [],
       subTotal: 0,
