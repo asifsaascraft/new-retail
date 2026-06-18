@@ -81,6 +81,7 @@ const BillingSchema = new mongoose.Schema(
     publicInvoiceId: {
       type: String,
       unique: true,
+      sparse: true,
     },
 
     invoiceType: {
