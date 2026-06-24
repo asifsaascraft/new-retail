@@ -3,7 +3,6 @@ import PurchaseInvoice from "../models/PurchaseInvoice.js";
 import Supplier from "../models/Supplier.js";
 import Product from "../models/Product.js";
 
-
 /* ======================================================
    Generate Reference Invoice Number
 ====================================================== */
@@ -377,17 +376,12 @@ export const completePurchaseInvoice = async (req, res) => {
 
     const discountValue = Number(discount);
 
-    if (
-      isNaN(discountValue) ||
-      discountValue < 0 ||
-      discountValue > 100
-    ) {
+    if (isNaN(discountValue) || discountValue < 0 || discountValue > 100) {
       return res.status(400).json({
         success: false,
         message: "Discount must be between 0 and 100",
       });
     }
-
 
     /* =========================
        FREIGHT VALIDATION
@@ -406,26 +400,25 @@ export const completePurchaseInvoice = async (req, res) => {
     ========================== */
 
     const discountAmountFinal = Number(
-      ((purchase.subTotal * discountValue) / 100).toFixed(2)
+      ((purchase.subTotal * discountValue) / 100).toFixed(2),
     );
 
-    const finalTotal = Number(
-      Math.max(
-        purchase.subTotal -
-        discountAmountFinal +
-        purchase.totalTax +
-        freightValue,
-        0
-      ).toFixed(2)
-    );
+    const taxableAmount =
+      purchase.subTotal - discountAmountFinal + freightValue;
+
+    const taxRate =
+      purchase.subTotal > 0 ? purchase.totalTax / purchase.subTotal : 0;
+
+    const recalculatedTax = Number((taxableAmount * taxRate).toFixed(2));
+
+    const finalTotal = Number((taxableAmount + recalculatedTax).toFixed(2));
 
     /* =========================
     GENERATE REFERENCE NUMBER
     ========================= */
 
     if (!purchase.referenceInvoiceNumber) {
-      purchase.referenceInvoiceNumber =
-        await generateReferenceInvoiceNumber();
+      purchase.referenceInvoiceNumber = await generateReferenceInvoiceNumber();
     }
 
     /* =========================

@@ -5,11 +5,7 @@ import Product from "../models/Product.js";
 import Customer from "../models/Customer.js";
 import sendBillingSMS from "../utils/sendBillingSMS.js";
 
-
-const nanoid = customAlphabet(
-  "ABCDEFGHJKLMNPQRSTUVWXYZ23456789",
-  8
-);
+const nanoid = customAlphabet("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", 8);
 
 /* ======================================================
    Generate Invoice Number
@@ -200,18 +196,16 @@ export const addProductByBarcode = async (req, res) => {
     else price = product.b2cSalePrice;
 
     /* =============================
-   TAX CALCULATION (PRICE INCLUDES TAX)
-============================= */
+       TAX CALCULATION (TAX ADDED)
+    ============================== */
 
     const taxPercent = product.salesTax || 0;
 
-    const priceWithQty = price * qty;
+    const baseAmount = price * qty;
 
-    const taxAmount = (priceWithQty * taxPercent) / (100 + taxPercent);
+    const taxAmount = (baseAmount * taxPercent) / 100;
 
-    const baseAmount = priceWithQty - taxAmount;
-
-    const totalAmount = priceWithQty;
+    const totalAmount = baseAmount + taxAmount;
 
     /* =============================
        CHECK IF PRODUCT ALREADY EXISTS
@@ -224,31 +218,25 @@ export const addProductByBarcode = async (req, res) => {
     if (existingItem) {
       /* remove old totals */
 
-      const oldPriceWithQty = existingItem.price * existingItem.quantity;
+      const oldBase = existingItem.price * existingItem.quantity;
 
-      const oldTax =
-        (oldPriceWithQty * existingItem.taxPercent) /
-        (100 + existingItem.taxPercent);
+      const oldTax = (oldBase * existingItem.taxPercent) / 100;
 
-      const oldBase = oldPriceWithQty - oldTax;
+      const oldTotal = oldBase + oldTax;
 
       billing.subTotal -= oldBase;
       billing.totalTax -= oldTax;
-      billing.grandTotal -= oldPriceWithQty;
+      billing.grandTotal -= oldTotal;
 
       /* increase quantity */
 
       existingItem.quantity += qty;
 
-      const newPriceWithQty = existingItem.price * existingItem.quantity;
+      const newBaseAmount = existingItem.price * existingItem.quantity;
 
-      const newTaxAmount =
-        (newPriceWithQty * existingItem.taxPercent) /
-        (100 + existingItem.taxPercent);
+      const newTaxAmount = (newBaseAmount * existingItem.taxPercent) / 100;
 
-      const newBaseAmount = newPriceWithQty - newTaxAmount;
-
-      const newTotalAmount = newPriceWithQty;
+      const newTotalAmount = newBaseAmount + newTaxAmount;
 
       existingItem.taxAmount = newTaxAmount;
       existingItem.totalAmount = newTotalAmount;
@@ -467,11 +455,7 @@ export const completeBilling = async (req, res) => {
 
     const discountValue = Number(discount);
 
-    if (
-      isNaN(discountValue) ||
-      discountValue < 0 ||
-      discountValue > 100
-    ) {
+    if (isNaN(discountValue) || discountValue < 0 || discountValue > 100) {
       return res.status(400).json({
         success: false,
         message: "Discount must be between 0 and 100",
@@ -495,18 +479,17 @@ export const completeBilling = async (req, res) => {
     ========================= */
 
     const discountAmountFinal = Number(
-      ((billing.subTotal * discountValue) / 100).toFixed(2)
+      ((billing.subTotal * discountValue) / 100).toFixed(2),
     );
 
-    const finalTotal = Number(
-      Math.max(
-        billing.subTotal -
-        discountAmountFinal +
-        billing.totalTax +
-        freightValue,
-        0
-      ).toFixed(2)
-    );
+    const taxableAmount = billing.subTotal - discountAmountFinal + freightValue;
+
+    const taxRate =
+      billing.subTotal > 0 ? billing.totalTax / billing.subTotal : 0;
+
+    const recalculatedTax = Number((taxableAmount * taxRate).toFixed(2));
+
+    const finalTotal = Number((taxableAmount + recalculatedTax).toFixed(2));
 
     /* =========================
     Generate Invoice number
@@ -646,16 +629,15 @@ export const removeProductFromBilling = async (req, res) => {
     }
 
     /* update totals */
-    const priceWithQty = item.price * item.quantity;
+    const baseAmount = item.price * item.quantity;
 
-    const taxAmount =
-      (priceWithQty * item.taxPercent) / (100 + item.taxPercent);
+    const taxAmount = (baseAmount * item.taxPercent) / 100;
 
-    const baseAmount = priceWithQty - taxAmount;
+    const totalAmount = baseAmount + taxAmount;
 
     billing.subTotal -= baseAmount;
     billing.totalTax -= taxAmount;
-    billing.grandTotal -= priceWithQty;
+    billing.grandTotal -= totalAmount;
 
     /* remove item */
     billing.items.splice(itemIndex, 1);
@@ -735,26 +717,22 @@ export const updateProductQuantity = async (req, res) => {
     await product.save();
 
     /* remove old totals */
-    const oldPriceWithQty = item.price * item.quantity;
+    const oldBase = item.price * item.quantity;
 
-    const oldTax =
-      (oldPriceWithQty * item.taxPercent) / (100 + item.taxPercent);
+    const oldTax = (oldBase * item.taxPercent) / 100;
 
-    const oldBase = oldPriceWithQty - oldTax;
+    const oldTotal = oldBase + oldTax;
 
     billing.subTotal -= oldBase;
     billing.totalTax -= oldTax;
-    billing.grandTotal -= oldPriceWithQty;
+    billing.grandTotal -= oldTotal;
 
     /* recalculate */
-    const priceWithQty = item.price * newQty;
+    const baseAmount = item.price * newQty;
 
-    const taxAmount =
-      (priceWithQty * item.taxPercent) / (100 + item.taxPercent);
+    const taxAmount = (baseAmount * item.taxPercent) / 100;
 
-    const baseAmount = priceWithQty - taxAmount;
-
-    const totalAmount = priceWithQty;
+    const totalAmount = baseAmount + taxAmount;
 
     item.quantity = newQty;
     item.taxAmount = taxAmount;
@@ -942,7 +920,6 @@ export const updateBillingPaymentStatus = async (req, res) => {
     });
   }
 };
-
 
 /* ======================================================
    Get Invoice
