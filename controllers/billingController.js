@@ -867,7 +867,7 @@ export const getCompletedBillings = async (req, res) => {
       status: "Completed",
     })
       .sort({ createdAt: -1 })
-      .populate("customerId", "customerType name email mobile");
+      .populate("customerId", "customerType name email mobile state country");
 
     res.json({
       success: true,
