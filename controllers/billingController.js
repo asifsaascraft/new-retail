@@ -316,7 +316,7 @@ export const getBillingById = async (req, res) => {
     const billing = await Billing.findById(req.params.id)
 
       // populate customer with selected fields
-      .populate("customerId", "customerType name email mobile")
+      .populate("customerId", "customerType name email mobile state")
 
       // populate branch with selected fields
       .populate(
